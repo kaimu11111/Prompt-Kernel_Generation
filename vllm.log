@@ -1,0 +1,39 @@
+INFO 07-31 16:31:36 [__init__.py:235] Automatically detected platform cuda.
+INFO 07-31 16:31:38 [api_server.py:1755] vLLM API server version 0.10.0
+INFO 07-31 16:31:38 [cli_args.py:261] non-default args: {'model': 'Qwen/Qwen-7B', 'trust_remote_code': True, 'dtype': 'bfloat16', 'max_model_len': 8192, 'tensor_parallel_size': 4}
+A new version of the following files was downloaded from https://huggingface.co/Qwen/Qwen-7B:
+- configuration_qwen.py
+. Make sure to double-check they do not contain any added malicious code. To avoid downloading new versions of the code file, you can pin a revision.
+Parse safetensors files:   0%|          | 0/8 [00:00<?, ?it/s]Parse safetensors files:  12%|█▎        | 1/8 [00:00<00:01,  4.22it/s]Parse safetensors files: 100%|██████████| 8/8 [00:00<00:00, 33.65it/s]
+INFO 07-31 16:31:45 [config.py:1604] Using max model len 8192
+WARNING 07-31 16:31:45 [arg_utils.py:1690] Compute Capability < 8.0 is not supported by the V1 Engine. Falling back to V0. 
+INFO 07-31 16:31:45 [api_server.py:268] Started engine process with PID 3595242
+A new version of the following files was downloaded from https://huggingface.co/Qwen/Qwen-7B:
+- tokenization_qwen.py
+. Make sure to double-check they do not contain any added malicious code. To avoid downloading new versions of the code file, you can pin a revision.
+WARNING 07-31 16:31:46 [tokenizer.py:280] Using a slow tokenizer. This might cause a significant slowdown. Consider using a fast tokenizer instead.
+INFO 07-31 16:31:49 [__init__.py:235] Automatically detected platform cuda.
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/wan00559/miniconda3/envs/maxk/lib/python3.11/site-packages/vllm/entrypoints/openai/api_server.py", line 1856, in <module>
+    uvloop.run(run_server(args))
+  File "/home/wan00559/miniconda3/envs/maxk/lib/python3.11/site-packages/uvloop/__init__.py", line 105, in run
+    return runner.run(wrapper())
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/wan00559/miniconda3/envs/maxk/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/handles/poll.pyx", line 216, in uvloop.loop.__on_uvpoll_event
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 66, in uvloop.loop.Handle._run
+  File "uvloop/loop.pyx", line 399, in uvloop.loop.Loop._read_from_self
+  File "uvloop/loop.pyx", line 404, in uvloop.loop.Loop._invoke_signals
+  File "uvloop/loop.pyx", line 379, in uvloop.loop.Loop._ceval_process_signals
+  File "/home/wan00559/miniconda3/envs/maxk/lib/python3.11/site-packages/vllm/entrypoints/openai/api_server.py", line 1775, in signal_handler
+    raise KeyboardInterrupt("terminated")
+KeyboardInterrupt: terminated

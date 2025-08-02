@@ -1,0 +1,1 @@
+python3 run_one_task.py KernelBench/level1/19_ReLU.py   --gpu "Quadro RTX 6000"   --server_type vllm   --server_address localhost   --server_port 8000   --model_name Qwen/QwQ-32B   --device 3   --generations 10   --pop_size 3   --max_tokens 16384

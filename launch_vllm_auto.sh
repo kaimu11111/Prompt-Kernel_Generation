@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=4,5,6,7 python -m vllm.entrypoints.openai.api_server   --model Qwen/QwQ-32B   --tensor-parallel-size 4   --dtype half   --max-model-len 32768   --reasoning-parser qwen3   --port 8000   --trust-remote-code
