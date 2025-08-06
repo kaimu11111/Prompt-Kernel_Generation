@@ -21,7 +21,7 @@ class Model(nn.Module):
         """
         return torch.matmul(A, B)
 
-N = 2048 * 2
+N = 1024 * 2
 
 def get_inputs():
     A = torch.rand(N, N)

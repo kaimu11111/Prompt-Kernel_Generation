@@ -257,23 +257,33 @@ class Island:
     def mutate(self, parent: KernelIndividual) -> KernelIndividual:
         print(f"[Mutating {parent.id}]")
         kernel_dir = self.work_dir / "kernels"
-        history_block = _build_history_block(kernel_dir, keep_last=20)
+        prompt_dir = self.work_dir / "prompts" / "mutate"
+        prompt_dir.mkdir(parents=True, exist_ok=True)
 
-        # Critic
+        history_block = _build_history_block(kernel_dir, keep_last=10)
+
+        # === Critic Phase ===
         critic_prompt = history_block + CRITIC_PROMPT.format(
             code=parent.code,
             metrics=parent.metrics or {},
         )
+        # critic_prompt_path = prompt_dir / f"mutate_{parent.id:04d}_critic.txt"
+        # critic_prompt_path.write_text(critic_prompt)
+        
         critic_reply = self.llm(critic_prompt, system="You are a CUDA kernel optimisation assistant.")
+
         feedback_dict = extract_critic_feedback(critic_reply)
         feedback_json = json.dumps(feedback_dict, indent=2)
 
-        # Author
+        # === Author Phase ===
         author_prompt = history_block + build_prompt(
             code=parent.code,
             feedback=feedback_json,
             gpu_name=self.gpu_name or "GPU",
         )
+        # author_prompt_path = prompt_dir / f"mutate_{parent.id:04d}_author.txt"
+        # author_prompt_path.write_text(author_prompt)
+        
         author_reply = self.llm(author_prompt, system="You are a CUDA kernel optimisation assistant.")
         code = extract_code_block(author_reply)
 
@@ -285,7 +295,7 @@ class Island:
     def crossover(self, p1: KernelIndividual, p2: KernelIndividual) -> KernelIndividual:
         print(f"[Crossover {p1.id} + {p2.id}]")
         kernel_dir = self.work_dir / "kernels"
-        history_block = _build_history_block(kernel_dir, keep_last=20)
+        history_block = _build_history_block(kernel_dir, keep_last=10)
 
         merge_prompt = history_block + build_merge_prompt(
             parent1=p1.code,

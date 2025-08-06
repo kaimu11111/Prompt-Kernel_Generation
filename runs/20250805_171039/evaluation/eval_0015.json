@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-08-05T18:31:20",
+  "reference_file": "KernelBench/level1/8_Matmul_with_irregular_shapes_.py",
+  "candidate_file": "/home/wan00559/cuda_mind_evolution/runs/20250805_171039/kernels/kernel_20250805_183009.py",
+  "tolerance": 0.0001,
+  "max_abs_err": 0.0,
+  "mean_abs_err": 0.0,
+  "ref_latency_ms": {
+    "avg": 4.920310401916504,
+    "min": 4.600704193115234,
+    "max": 5.008512020111084
+  },
+  "test_latency_ms": {
+    "avg": 149.66695861816407,
+    "min": 149.63385009765625,
+    "max": 150.01840209960938
+  },
+  "num_runs": 20,
+  "score": 0.03287506105117953
+}

@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-08-02T00:20:57",
+  "reference_file": "KernelBench/level1/19_ReLU.py",
+  "candidate_file": "/home/wan00559/cuda_mind_evolution/runs/20250801_234028/kernels/kernel_20250802_000156.py",
+  "tolerance": 0.0001,
+  "max_abs_err": 0.0,
+  "mean_abs_err": 0.0,
+  "ref_latency_ms": {
+    "avg": 12.027524662017822,
+    "min": 12.005375862121582,
+    "max": 12.10319995880127
+  },
+  "test_latency_ms": {
+    "avg": 11.831631994247436,
+    "min": 11.822943687438965,
+    "max": 11.84768009185791
+  },
+  "num_runs": 20,
+  "score": 1.0165566903928072
+}

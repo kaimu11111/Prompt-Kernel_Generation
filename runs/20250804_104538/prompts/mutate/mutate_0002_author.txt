@@ -1,0 +1,313 @@
+## Existing kernels
+### Kernel 1 · kernel_20250804_104735.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* x, float* out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        out[idx] = (x[idx] > 0.f) ? x[idx] : 0.f;
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 256;
+    int num_blocks = (size + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 2 · kernel_20250804_105553.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int base = idx * 4;
+    if (base < size) {
+        int pos0 = base;
+        int pos1 = base + 1;
+        int pos2 = base + 2;
+        int pos3 = base + 3;
+
+        if (pos0 < size) {
+            float x0 = __ldg(x + pos0);
+            out[pos0] = (x0 > 0.f) ? x0 : 0.f;
+        }
+        if (pos1 < size) {
+            float x1 = __ldg(x + pos1);
+            out[pos1] = (x1 > 0.f) ? x1 : 0.f;
+        }
+        if (pos2 < size) {
+            float x2 = __ldg(x + pos2);
+            out[pos2] = (x2 > 0.f) ? x2 : 0.f;
+        }
+        if (pos3 < size) {
+            float x3 = __ldg(x + pos3);
+            out[pos3] = (x3 > 0.f) ? x3 : 0.f;
+        }
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_threads_needed = (size + 3) / 4;
+    int num_blocks = (num_threads_needed + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 3 · kernel_20250804_110256.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    while (idx < size) {
+        int pos0 = idx;
+        int pos1 = pos0 + 1;
+        int pos2 = pos0 + 2;
+        int pos3 = pos0 + 3;
+
+        if (pos0 < size) {
+            out[pos0] = max(0.f, __ldg(x + pos0));
+        }
+        if (pos1 < size) {
+            out[pos1] = max(0.f, __ldg(x + pos1));
+        }
+        if (pos2 < size) {
+            out[pos2] = max(0.f, __ldg(x + pos2));
+        }
+        if (pos3 < size) {
+            out[pos3] = max(0.f, __ldg(x + pos3));
+        }
+        idx += stride;
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_blocks = (size + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 4 · kernel_20250804_111300.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+
+__global__ void optimized_relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int base = idx * 4;
+
+    if (base >= size) return;
+
+    const float4* x4_ptr = reinterpret_cast<const float4*>(x + base);
+    float4 x4 = __ldg(x4_ptr);
+    float* x_elements = reinterpret_cast<float*>(&x4);
+
+    for (int i = 0; i < 4; ++i) {
+        int pos = base + i;
+        if (pos < size) {
+            out[pos] = fmaxf(x_elements[i], 0.f);
+        }
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_threads_needed = (size + 3) / 4;
+    int num_blocks = (num_threads_needed + block_size - 1) / block_size;
+
+    optimized_relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 5 · kernel_20250804_112517.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    int chunk_start = thread_id * 4;
+
+    if (chunk_start >= size) return;
+
+    const float4* x4 = reinterpret_cast<const float4*>(x + chunk_start);
+    float4 val = __ldg(x4);
+    float* vals = reinterpret_cast<float*>(&val);
+
+    for (int i = 0; i < 4; ++i) {
+        int pos = chunk_start + i;
+        if (pos >= size) continue;
+        out[pos] = fmaxf(vals[i], 0.f);
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 256;
+    int num_threads_needed = (size + 3) / 4;
+    int num_blocks = (num_threads_needed + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+You are a CUDA‑kernel optimisation specialist.
+Target GPU: **NVIDIA Quadro RTX 6000 (Turing)**
+• GPU Memory: 24GB GDDR6 with ECC
+• Memory Bandwidth: 624 GB/s
+• FP32 TFLOPS: 16.3
+• TF32 Tensor Core TFLOPS: — (Turing 不支持 TF32)
+• FP16 Tensor Core TFLOPS: 261 (522 with sparsity)*
+• FP8 Tensor Core TFLOPS: — (不支持 FP8)
+• INT8 Tensor Core TOPS: 261 (522 with sparsity)*
+• Register File Size: 64K 32-bit registers per SM
+• Maximum number of registers per thread: 255
+• Maximum number of thread blocks per SM: 32
+• Shared memory capacity per SM: 64 KB
+• Maximum shared memory per thread block: 64 KB
+
+Task
+----
+Below are:
+1. The original CUDA kernel.
+2. Structured Critic feedback in JSON format, clearly describing issues and suggestions.
+
+Your task: produce an improved CUDA kernel that addresses **all** issues and fully incorporates **all** suggestions.
+
+OUTPUT REQUIREMENTS (STRICT)
+─────────────────────────────────────────────
+- Respond with exactly one fenced code block labelled `python`.
+
+Within the fenced block, follow this order:
+1. Imports: `torch`, `torch.nn`, `load_inline`.
+2. `source`: triple-quoted CUDA code (kernel + launcher).
+3. `cpp_src`: C++ prototypes for all kernels.
+4. Exactly one `load_inline` call.
+5. `class ModelNew(nn.Module)`: mirrors original inputs/outputs, calls optimized kernels.
+
+Exclude:
+- Testing code
+- `if __name__ == "__main__"` guard
+- Additional prose or markdown
+
+[Original Kernel]
+import torch
+import torch.nn as nn
+from torch.utils.cpp_extension import load_inline
+
+source = """
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    while (idx < size) {
+        int pos0 = idx;
+        int pos1 = pos0 + 1;
+        int pos2 = pos0 + 2;
+        int pos3 = pos0 + 3;
+
+        if (pos0 < size) {
+            out[pos0] = max(0.f, __ldg(x + pos0));
+        }
+        if (pos1 < size) {
+            out[pos1] = max(0.f, __ldg(x + pos1));
+        }
+        if (pos2 < size) {
+            out[pos2] = max(0.f, __ldg(x + pos2));
+        }
+        if (pos3 < size) {
+            out[pos3] = max(0.f, __ldg(x + pos3));
+        }
+        idx += stride;
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_blocks = (size + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+"""
+
+cpp_src = "torch::Tensor custom_relu_cuda(torch::Tensor x);"
+
+custom_relu = load_inline(
+    name="custom_relu",
+    cpp_sources=cpp_src,
+    cuda_sources=source,
+    functions=["custom_relu_cuda"],
+    verbose=True,
+    extra_cflags=["-O3"],
+    extra_ldflags=[""],
+)
+
+class ModelNew(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.custom_relu = custom_relu
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.custom_relu.custom_relu_cuda(x)
+
+
+[Critic Feedback JSON]
+"{\n  \"issues\": [\n    \"The kernel uses scalar memory accesses (individual float loads) instead of vectorized loads (e.g., float4), leading to suboptimal memory throughput.\",\n    \"The per-element boundary checks (pos0 < size, etc.) introduce conditional branching and warp divergence when processing the trailing elements.\",\n    \"The stride-based while loop creates irregular thread execution patterns, especially when the input size isn't a multiple of four.\"\n  ],\n  \"bottlenecks\": [\n    \"Memory bandwidth utilization is limited by non-vectorized memory operations.\",\n    \"Warp divergence from per-element conditional checks at array boundaries.\",\n    \"Thread underutilization in the final block when input size isn't a multiple of four.\"\n  ],\n  \"suggestions\": [\n    \"Replace scalar loads with vectorized float4 loads using reinterpret_cast and __ldg to process four elements per memory transaction.\",\n    \"Use a single pre-loop boundary check to determine the number of valid elements per thread (0-4), eliminating per-element conditionals.\",\n    \"Adjust block/grid configuration to align with vector sizes: use block size divisible by warp size (e.g., 256) and compute thread counts based on (size + 3)/4 to avoid partial thread utilization.\",\n    \"Replace the while loop with a tile-based approach where each thread block processes contiguous chunks of the array to improve coalesced memory access patterns.\"\n  ]\n}"
+
+# ==========================================================
+# OUTPUT FORMAT – EXACTLY:
+```python
+# <corrected, optimized Python script>
+```
+# ==========================================================
+# ---------- Diversity requirement ----------
+The kernel you generate **must be meaningfully different** from every existing kernel listed above. Acceptable forms of difference include, but are not limited to:
+
+Do **not** simply adjust constants or reorder lines of an existing kernel.

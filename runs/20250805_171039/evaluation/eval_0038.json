@@ -1,0 +1,4 @@
+{
+  "error_type": "RuntimeError",
+  "message": "Traceback (most recent call last):\n  File \"/home/wan00559/cuda_mind_evolution/scripts/compile_and_run.py\", line 218, in compare_and_bench\n    raise ValueError(f\"max_abs_err={max_err:.3e} > tol={tol}\")\nValueError: max_abs_err=5.702e+01 > tol=0.0001\n"
+}

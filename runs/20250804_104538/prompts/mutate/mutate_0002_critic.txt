@@ -1,0 +1,284 @@
+## Existing kernels
+### Kernel 1 · kernel_20250804_104735.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* x, float* out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        out[idx] = (x[idx] > 0.f) ? x[idx] : 0.f;
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 256;
+    int num_blocks = (size + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 2 · kernel_20250804_105553.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int base = idx * 4;
+    if (base < size) {
+        int pos0 = base;
+        int pos1 = base + 1;
+        int pos2 = base + 2;
+        int pos3 = base + 3;
+
+        if (pos0 < size) {
+            float x0 = __ldg(x + pos0);
+            out[pos0] = (x0 > 0.f) ? x0 : 0.f;
+        }
+        if (pos1 < size) {
+            float x1 = __ldg(x + pos1);
+            out[pos1] = (x1 > 0.f) ? x1 : 0.f;
+        }
+        if (pos2 < size) {
+            float x2 = __ldg(x + pos2);
+            out[pos2] = (x2 > 0.f) ? x2 : 0.f;
+        }
+        if (pos3 < size) {
+            float x3 = __ldg(x + pos3);
+            out[pos3] = (x3 > 0.f) ? x3 : 0.f;
+        }
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_threads_needed = (size + 3) / 4;
+    int num_blocks = (num_threads_needed + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 3 · kernel_20250804_110256.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    while (idx < size) {
+        int pos0 = idx;
+        int pos1 = pos0 + 1;
+        int pos2 = pos0 + 2;
+        int pos3 = pos0 + 3;
+
+        if (pos0 < size) {
+            out[pos0] = max(0.f, __ldg(x + pos0));
+        }
+        if (pos1 < size) {
+            out[pos1] = max(0.f, __ldg(x + pos1));
+        }
+        if (pos2 < size) {
+            out[pos2] = max(0.f, __ldg(x + pos2));
+        }
+        if (pos3 < size) {
+            out[pos3] = max(0.f, __ldg(x + pos3));
+        }
+        idx += stride;
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_blocks = (size + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 4 · kernel_20250804_111300.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+
+__global__ void optimized_relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int base = idx * 4;
+
+    if (base >= size) return;
+
+    const float4* x4_ptr = reinterpret_cast<const float4*>(x + base);
+    float4 x4 = __ldg(x4_ptr);
+    float* x_elements = reinterpret_cast<float*>(&x4);
+
+    for (int i = 0; i < 4; ++i) {
+        int pos = base + i;
+        if (pos < size) {
+            out[pos] = fmaxf(x_elements[i], 0.f);
+        }
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_threads_needed = (size + 3) / 4;
+    int num_blocks = (num_threads_needed + block_size - 1) / block_size;
+
+    optimized_relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+### Kernel 5 · kernel_20250804_112517.py
+```cuda
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+#include <cuda_fp16.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    int chunk_start = thread_id * 4;
+
+    if (chunk_start >= size) return;
+
+    const float4* x4 = reinterpret_cast<const float4*>(x + chunk_start);
+    float4 val = __ldg(x4);
+    float* vals = reinterpret_cast<float*>(&val);
+
+    for (int i = 0; i < 4; ++i) {
+        int pos = chunk_start + i;
+        if (pos >= size) continue;
+        out[pos] = fmaxf(vals[i], 0.f);
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 256;
+    int num_threads_needed = (size + 3) / 4;
+    int num_blocks = (num_threads_needed + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+```
+
+Analyze the following CUDA kernel code and its performance metrics.
+Identify the primary issues and bottlenecks, and provide actionable optimization suggestions.
+
+[Kernel Code]
+import torch
+import torch.nn as nn
+from torch.utils.cpp_extension import load_inline
+
+source = """
+#include <torch/extension.h>
+#include <cuda_runtime.h>
+
+__global__ void relu_kernel(const float* __restrict__ x, float* __restrict__ out, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    while (idx < size) {
+        int pos0 = idx;
+        int pos1 = pos0 + 1;
+        int pos2 = pos0 + 2;
+        int pos3 = pos0 + 3;
+
+        if (pos0 < size) {
+            out[pos0] = max(0.f, __ldg(x + pos0));
+        }
+        if (pos1 < size) {
+            out[pos1] = max(0.f, __ldg(x + pos1));
+        }
+        if (pos2 < size) {
+            out[pos2] = max(0.f, __ldg(x + pos2));
+        }
+        if (pos3 < size) {
+            out[pos3] = max(0.f, __ldg(x + pos3));
+        }
+        idx += stride;
+    }
+}
+
+torch::Tensor custom_relu_cuda(torch::Tensor x) {
+    int64_t size = x.numel();
+    auto out = torch::empty_like(x);
+
+    const int block_size = 512;
+    int num_blocks = (size + block_size - 1) / block_size;
+
+    relu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);
+
+    return out;
+}
+"""
+
+cpp_src = "torch::Tensor custom_relu_cuda(torch::Tensor x);"
+
+custom_relu = load_inline(
+    name="custom_relu",
+    cpp_sources=cpp_src,
+    cuda_sources=source,
+    functions=["custom_relu_cuda"],
+    verbose=True,
+    extra_cflags=["-O3"],
+    extra_ldflags=[""],
+)
+
+class ModelNew(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.custom_relu = custom_relu
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.custom_relu.custom_relu_cuda(x)
+
+
+[Performance Metrics]
+{'timestamp': '2025-08-04T11:04:07', 'reference_file': 'KernelBench/level1/19_ReLU.py', 'candidate_file': '/home/wan00559/cuda_mind_evolution/runs/20250804_104538/kernels/kernel_20250804_110256.py', 'tolerance': 0.0001, 'max_abs_err': 0.0, 'mean_abs_err': 0.0, 'ref_latency_ms': {'avg': 12.02271990776062, 'min': 12.010080337524414, 'max': 12.03996753692627}, 'test_latency_ms': {'avg': 11.738972854614257, 'min': 11.732992172241211, 'max': 11.747072219848633}, 'num_runs': 20, 'score': 1.0241713697323043}
+
+
+The JSON must have exactly three keys:
+- "issues": list of strings describing code problems.
+- "bottlenecks": list of strings identifying performance bottlenecks.
+- "suggestions": list of strings with optimization recommendations.
+
+Example:
+{
+  "issues": [""],
+  "bottlenecks": [""],
+  "suggestions": [""]
+}
+
+# ---------- Diversity requirement ----------
+The kernel you generate **must be meaningfully different** from every existing kernel listed above. Acceptable forms of difference include, but are not limited to:
+
+Do **not** simply adjust constants or reorder lines of an existing kernel.

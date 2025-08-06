@@ -1,0 +1,4 @@
+{
+  "error_type": "RuntimeError",
+  "message": "Traceback (most recent call last):\n  File \"/home/wan00559/cuda_mind_evolution/scripts/compile_and_run.py\", line 212, in compare_and_bench\n    ref_out, _ = _run_once(RefModel(), inp, dev)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/wan00559/cuda_mind_evolution/scripts/compile_and_run.py\", line 116, in _run_once\n    inp = [x.to(dev) for x in inp]\n          ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/wan00559/cuda_mind_evolution/scripts/compile_and_run.py\", line 116, in <listcomp>\n    inp = [x.to(dev) for x in inp]\n           ^^^^^^^^^\nRuntimeError: CUDA error: an illegal memory access was encountered\nCUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.\nFor debugging consider passing CUDA_LAUNCH_BLOCKING=1\nCompile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.\n\n"
+}

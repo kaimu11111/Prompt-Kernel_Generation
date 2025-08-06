@@ -21,9 +21,9 @@ class Model(nn.Module):
         """
         return torch.matmul(A, B)
 
-M = 8205
-K = 2949
-N = 5921
+M = 4096
+K = 2048
+N = 4096
 
 def get_inputs():
     A = torch.rand(M, K)

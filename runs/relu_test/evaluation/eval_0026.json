@@ -1,0 +1,4 @@
+{
+  "error_type": "CompilationError",
+  "message": "load_inline() got an unexpected keyword argument 'cuda'"
+}
